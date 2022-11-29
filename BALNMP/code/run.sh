@@ -19,6 +19,7 @@ python -u train.py \
     --val_json_path dataset/json/val-type-${experiment_type}.json \
     --test_json_path dataset/json/test-type-${experiment_type}.json \
     --clinical_data_path dataset/clinical_data/preprocessed-type-${experiment_type}.xlsx \
+    --data_dir_path "/mnt/d/data_ai/public/medical/BALNMP" \
     --num_classes ${num_classes} \
     --backbone vgg16_bn \
     --log_name ${experiment_type} | tee logs/${experiment_type}/output.log 2>&1
