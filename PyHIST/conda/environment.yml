@@ -1,0 +1,13 @@
+name: PyHIST
+channels:
+  - anaconda
+  - bioconda
+  - conda-forge
+  - defaults
+dependencies:
+  - opencv
+  - openslide-python
+  - py-opencv
+  - pixman=0.36.0
+  - pandas
+  - libiconv
