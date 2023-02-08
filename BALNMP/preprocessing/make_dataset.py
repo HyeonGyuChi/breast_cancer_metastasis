@@ -69,14 +69,18 @@ def split_patients():
     return folds
 
 def make_clinical_data():
-    csv_path = '/mnt/d/data_ai/challenge/breast_cancer_metastasis/assets/open/train.csv'
+    csv_path = '/mnt/d/data_ai/challenge/breast_cancer_metastasis/assets/open/test.csv' # target csv path
     anno_df = pd.read_csv(csv_path, encoding='cp949')
     
-    clinical_dir = '/mnt/d/data_ai/challenge/breast_cancer_metastasis/assets/open/dataset/clinical_data'
+    train_csv_path = '/mnt/d/data_ai/challenge/breast_cancer_metastasis/assets/open/train.csv'
+    train_anno_df = pd.read_csv(train_csv_path, encoding='cp949')
+    
+    clinical_dir = '/mnt/d/data_ai/challenge/breast_cancer_metastasis/assets/open/dataset/clinical_data_new'
     os.makedirs(clinical_dir, exist_ok=True)
     
     # nan 처리
     anno_df = anno_df.fillna(NAN_NUM)
+    train_anno_df = train_anno_df.fillna(NAN_NUM)
     
     # set columns
     '''
@@ -92,15 +96,21 @@ def make_clinical_data():
             'T_category', 'ER', 'ER_Allred_score', 'PR', 'PR_Allred_score', 'KI-67_LI_percent', \
                 'HER2', 'HER2_IHC', 'HER2_SISH', 'HER2_SISH_ratio', 'BRCA_mutation']
     anno_df = anno_df[clinical_col]
+    train_anno_df = train_anno_df[clinical_col]
     
     # standardization
+    # first, calc standaridization param on trainset
+    train_value = train_anno_df.iloc[:, 1:].values
+    train_scaler = StandardScaler()
+    train_scaler.fit(train_value) # train standaridization param
+
+    # second, apply trainset param
     anno_value = anno_df.iloc[:, 1:].values
-    scaler = StandardScaler()
-    anno_value = scaler.fit_transform(anno_value)
+    anno_value = train_scaler.transform(anno_value)
     anno_df.iloc[:, 1:] = anno_value
 
     # save
-    anno_df.to_excel(os.path.join(clinical_dir, 'clinical_train_data.xlsx'), index=False)
+    anno_df.to_excel(os.path.join(clinical_dir, 'clinical_test_data.xlsx'), index=False)
 
 
 def make_bags():
@@ -154,8 +164,48 @@ def make_bags():
             with open(os.path.join(bags_dir, '{}-fold-{}.json'.format(df_key, f_num)), "w") as outfile:
                 json.dump(bags, outfile, indent=4)
             
+def make_infer_bags():
+    csv_path = '/mnt/d/data_ai/challenge/breast_cancer_metastasis/assets/open/test.csv'
+    target_df = pd.read_csv(csv_path, encoding='cp949')
     
+    BAG_SIZE = 10
+    
+    patches_root_dir  = '/mnt/d/data_ai/challenge/breast_cancer_metastasis/assets/open/test_imgs_PyHIST'
+    bags_dir = '/mnt/d/data_ai/challenge/breast_cancer_metastasis/assets/open/dataset/json'
+    os.makedirs(bags_dir, exist_ok=True)
+       
+    bags = []
+    
+    for i in range(len(target_df)):
+        p_id = target_df.iloc[i, 0]
+        
+        # search patches
+        patches_dir = os.path.join(patches_root_dir, p_id, '{}_tiles'.format(p_id))
+        p_patches = os.listdir(patches_dir)
+        random.Random(RANDOM_SEED).shuffle(p_patches)
+        
+        b_cnt, _ = divmod(len(p_patches), BAG_SIZE)
+        
+        if b_cnt == 0:
+            print('continue')
+            continue
+        
+        # insert bag on bags
+        for b_num in range(b_cnt):
+            pp = p_patches[BAG_SIZE * b_num : BAG_SIZE * (b_num+1)]
+            
+            bag = {
+                'id': p_id,
+                'patch_paths': [os.path.join(p_id, '{}_tiles'.format(p_id), p) for p in pp]
+            }
+            
+            bags.append(bag)
+    
+    with open(os.path.join(bags_dir, 'inference.json'), "w") as outfile:
+        json.dump(bags, outfile, indent=4)
+
 if __name__ == "__main__":
     # split_patients()
     # make_clinical_data()
-    make_bags()
+    # make_bags() # train
+    make_infer_bags() # test (inference)
