@@ -20,6 +20,7 @@ def parser_args():
     parser.add_argument("--test_json_path", required=True)
     parser.add_argument("--data_dir_path", default="./dataset")
     parser.add_argument("--clinical_data_path")
+    parser.add_argument("--clinical_data_size", type=int)
     parser.add_argument("--preloading", action="store_true")
     parser.add_argument("--num_classes", type=int, choices=[2, 3], default=2)
 
@@ -43,7 +44,7 @@ def parser_args():
     parser.add_argument("--train_stop_auc", type=float, default=0.98)
     parser.add_argument("--merge_method", choices=["max", "mean", "not_use"], default="mean")
     parser.add_argument("--seed", type=int, default=8888)
-    parser.add_argument("--num_workers", type=int, default=8)
+    parser.add_argument("--num_workers", type=int, default=6)
 
     args = parser.parse_args()
 
@@ -113,7 +114,7 @@ if __name__ == "__main__":
 
     # init model
     if args.clinical_data_path:
-        model = MILNetWithClinicalData(num_classes=args.num_classes, backbone_name=args.backbone)
+        model = MILNetWithClinicalData(num_classes=args.num_classes, backbone_name=args.backbone, clinical_data_size=args.clinical_data_size)
     else:
         model = MILNetImageOnly(num_classes=args.num_classes, backbone_name=args.backbone)
     model = model.cuda()
