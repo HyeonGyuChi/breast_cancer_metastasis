@@ -3,7 +3,7 @@ import torch
 import pandas as pd
 from sklearn import metrics
 from torch.nn import functional as F
-
+from tqdm import tqdm 
 
 def disable_dropout(model):
     for m in model.modules():
@@ -120,6 +120,31 @@ def train_val_test_binary_class(task_type, epoch, model, data_loader, optimizer,
             score_list.append(score)
             patch_path_list.extend([p[0] for p in item["patch_paths"]])
             attention_value_list.extend(attention_value[0].cpu().tolist())
+    
+    elif task_type == 'inference':
+        model.eval()
+        disable_dropout(model)
+        with torch.no_grad():
+            for item in tqdm(data_loader):
+                bag_tensor = item["bag_tensor"].cuda()
+                clinical_data = item["clinical_data"][0].cuda() if "clinical_data" in item else None
+
+                output, attention_value = model(bag_tensor, clinical_data)
+
+                id_list.append(item["patient_id"][0])
+                
+                score = F.softmax(output, dim=-1).squeeze(dim=0)[1].cpu().item()  # use the predicted positive probability as score
+                label_list.append("unknown")
+                score_list.append(score)
+                patch_path_list.extend([p[0] for p in item["patch_paths"]])
+                attention_value_list.extend(attention_value[0].cpu().tolist())
+        
+        if merge_method != "not_use":
+            id_list, label_list, score_list, bag_num_list = merge_result(id_list, label_list, score_list, merge_method)
+
+        predicted_label_list = [1 if score >= 0.5 else 0 for score in score_list]
+        return id_list, predicted_label_list, score_list, bag_num_list
+    
     else:
         # model.eavl()
         disable_dropout(model)
