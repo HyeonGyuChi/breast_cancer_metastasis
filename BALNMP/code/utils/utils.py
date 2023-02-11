@@ -181,7 +181,7 @@ def train_val_test_binary_class(task_type, epoch, model, data_loader, optimizer,
     writer.add_scalars("comparison/auc", {f"{task_type}_auc": metrics_dict["auc"]}, epoch)
     writer.add_scalars(f"metrics/{task_type}", metrics_dict, epoch)
 
-    return metrics_dict["auc"]
+    return metrics_dict, average_loss, label_list, score_list
 
 
 def train_val_test_multi_class(task_type, epoch, model, data_loader, optimizer, recoder, writer, merge_method):

@@ -10,6 +10,8 @@ from breast import BreastDataset
 import random
 import warnings
 
+import wandb
+wandb.init(project="breast_cancer_metastasis", entity="hyeongyuc96")
 
 def parser_args():
     parser = argparse.ArgumentParser()
@@ -97,6 +99,9 @@ def init_dataloader(args):
 
 if __name__ == "__main__":
     args = parser_args()
+    
+    # wandb setup
+    wandb.config.update(args)
 
     # init setting
     warnings.filterwarnings("ignore")
@@ -136,11 +141,54 @@ if __name__ == "__main__":
     best_epoch = 0
     for epoch in range(1, args.epoch + 1):
         scheduler.step()
-
-        train_auc = main_fun("train", epoch, model, train_loader, optimizer, train_recoder, writer, args.merge_method)
-        val_auc = main_fun("val", epoch, model, val_loader, None, val_recoder, writer, args.merge_method)
-        main_fun("test", epoch, model, test_loader, None, test_recoder, writer, args.merge_method)
-
+    
+        train_metrics, train_loss, _, _ = main_fun("train", epoch, model, train_loader, optimizer, train_recoder, writer, args.merge_method)
+        val_metrics, val_loss, _, _ = main_fun("val", epoch, model, val_loader, None, val_recoder, writer, args.merge_method)
+        test_metrics, test_loss, label_list, score_list = main_fun("test", epoch, model, test_loader, None, test_recoder, writer, args.merge_method)
+        predicted_label_list = [1 if score >= 0.5 else 0 for score in score_list]
+        
+        # wandb log
+        wandb.log({
+            "epoch": epoch,
+        }, commit=False)
+        
+        wandb.log({
+            'train_loss': train_loss,
+            'train_auc': train_metrics['auc'],
+            'train_acc': train_metrics['acc'],
+            'train_sens(recall)': train_metrics['sens'],
+            'train_spec': train_metrics['spec'],
+            'train_ppv(precision)': train_metrics['ppv'],
+            'train_npv': train_metrics['npv'],
+            'train_f1': train_metrics['f1'],
+        }, commit=False)
+        
+        wandb.log({
+            'val_loss': val_loss,
+            'val_auc': val_metrics['auc'],
+            'val_acc': val_metrics['acc'],
+            'val_sens(recall)': val_metrics['sens'],
+            'val_spec': val_metrics['spec'],
+            'val_ppv(precision)': val_metrics['ppv'],
+            'val_npv': val_metrics['npv'],
+            'val_f1': val_metrics['f1'],
+        }, commit=False)
+        
+        wandb.log({
+            'test_loss': test_loss,
+            'test_auc': test_metrics['auc'],
+            'test_acc': test_metrics['acc'],
+            'test_sens(recall)': test_metrics['sens'],
+            'test_spec': test_metrics['spec'],
+            'test_ppv(precision)': test_metrics['ppv'],
+            'test_npv': test_metrics['npv'],
+            'test_f1': test_metrics['f1'],
+        }, commit=False)
+        
+        # get only auc    
+        train_auc = train_metrics['auc']
+        val_auc = val_metrics['auc']
+        
         # save best
         if val_auc > best_auc:
             best_auc = val_auc
@@ -156,8 +204,34 @@ if __name__ == "__main__":
 
         # early stopping
         if train_auc > args.train_stop_auc:
+            # score expansion for plot
+            new_score = np.zeros((len(score_list), 2))
+            for i, lab in enumerate(label_list):
+                if lab == 0:
+                    new_score[i, 0] = score_list[i]
+                    new_score[i, 1] = 1 - score_list[i]
+                elif lab == 1:
+                    new_score[i, 0] = 1 - score_list[i]
+                    new_score[i, 1] = score_list[i]
+            
+            wandb.log({
+                'pr': wandb.plot.pr_curve(np.array(label_list), new_score, labels=['N', 'P'])
+            }, commit=False)
+            
+            wandb.log({
+                'roc': wandb.plot.roc_curve(np.array(label_list), new_score, labels=['N', 'P'])
+            }, commit=False)
+            
+            wandb.log({
+                'Confusion Matrix': wandb.plot.confusion_matrix\
+                    (y_true=np.array(label_list), preds=np.array(predicted_label_list), class_names=['N', 'P'])
+            }, commit=True)
+            
             print(f"early stopping, epoch: {epoch}, train_auc: {train_auc:.3f} (>{args.train_stop_auc})")
             break
+        
+        else:
+            wandb.log({}, commit=True)
 
         torch.cuda.empty_cache()
 
